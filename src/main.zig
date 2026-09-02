@@ -33,7 +33,7 @@ pub fn main(init: std.process.Init) !void {
     };
 
     switch (cli.running_cmd.name) {
-        .root => {},
+        .root => unreachable,
         .init => {
             const cwd = std.Io.Dir.cwd();
             cwd.createDir(init.io, "tasks", .default_dir) catch |err| {
@@ -98,7 +98,11 @@ pub fn main(init: std.process.Init) !void {
             try stdout.print("{f}\n", .{task.dump(path_buf[0..path_n])});
             try stdout.flush();
         },
-        else => {},
+        .ls => std.log.info("TODO: {t} cmd is not implemented yet", .{cli.running_cmd.name}),
+        .find => std.log.info("TODO: {t} cmd is not implemented yet", .{cli.running_cmd.name}),
+        .graph => std.log.info("TODO: {t} cmd is not implemented yet", .{cli.running_cmd.name}),
+        .ref => std.log.info("TODO: {t} cmd is not implemented yet", .{cli.running_cmd.name}),
+        .summary => std.log.info("TODO: {t} cmd is not implemented yet", .{cli.running_cmd.name}),
     }
 }
 

@@ -93,4 +93,49 @@ pub const CMD_LIST = [_]CmdType{
             },
         },
     },
+
+    CmdType{
+        .name = .summary,
+        .info = "Print the summary of the tasks",
+        .usage = "[OPTIONS]",
+        .min_pos_arg = 0,
+        .min_arg = 0,
+        .options = &.{
+            Arg{
+                .long = "closed",
+                .short = 'c',
+                .info = "List closed tasks",
+                .value = .{ .bool = null },
+            },
+        },
+    },
+    CmdType{
+        .name = .find,
+        .info = "Find the task with a given HUID",
+        .usage = "<HUID> [OPTIONS]",
+        .min_pos_arg = 0,
+        .min_arg = 0,
+        .options = &.{
+            Arg{
+                .long = "path-only",
+                .short = 'p',
+                .info = "Print only the path to TASK.md",
+                .value = .{ .bool = null },
+            },
+        },
+    },
+    CmdType{
+        .name = .ref,
+        .info = "Find referers of the task",
+        .usage = "[HUID]",
+        .min_pos_arg = 0,
+        .min_arg = 0,
+    },
+    CmdType{
+        .name = .graph,
+        .info = "Generate graph of tasks cross-referring to each other. This command is largely useless right now.",
+        .usage = "",
+        .min_pos_arg = 0,
+        .min_arg = 0,
+    },
 };
