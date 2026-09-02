@@ -1,0 +1,17 @@
+.{
+    .name = .trac,
+    .version = "0.0.1",
+    .dependencies = .{
+        .zarg = .{
+            .url = "git+https://github.com/SyedDevop/zarg#29170cd9b37335dd1a988e89855c4f282c0ddb32",
+            .hash = "zarg-0.3.1-x4gzxaiuAQDhZ5U2lajBmxdcAnNzGbYHilfj7h2DA7t9",
+        },
+    },
+    .minimum_zig_version = "0.16.0",
+    .fingerprint = 0x3a313eedf23440c8,
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src/",
+    },
+}

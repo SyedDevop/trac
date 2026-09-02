@@ -1,0 +1,96 @@
+const std = @import("std");
+const zarg = @import("zarg");
+const Arg = zarg.Cli.Arg;
+const Allocator = std.mem.Allocator;
+
+pub const Name = "Task Tracker";
+pub const DESCRIPTION =
+    "A task tracker written in Zig, inspired by tatr by @rexim: https://github.com/tsoding/tatr.";
+
+pub const Cmds = enum {
+    root,
+    init,
+    ls,
+    new,
+    summary,
+    find,
+    ref,
+    graph,
+    // completion,
+};
+
+pub const CmdType = zarg.Cli.Cmd(Cmds);
+
+pub const CMD_LIST = [_]CmdType{
+    CmdType{
+        .name = .root,
+        .usage = "[COMMANDS] [OPTIONS]",
+        .min_arg = 1,
+        .print_help_for_min_pos_arg = true,
+    },
+    CmdType{
+        .name = .init,
+        .info = "Create tasks/ directory in the current working directory if it doesn't exist yet",
+        .usage = "",
+        .min_arg = 0,
+    },
+    CmdType{
+        .name = .new,
+        .info = "Create a new task",
+        .usage = "[OPTIONS] [TITLE...]",
+        .min_pos_arg = 0,
+        .min_arg = 0,
+        .options = &.{
+            Arg{
+                .long = "tags",
+                .short = 't',
+                .info = "tags to add to the new task",
+                .value = .{ .str = null },
+            },
+            Arg{
+                .long = "priority",
+                .short = 'p',
+                .info = "Priority of the new task Default: 100",
+                .value = .{ .num = 100 },
+            },
+            Arg{
+                .long = "suffix",
+                .short = 's',
+                .info = "Task ID optional suffix",
+                .value = .{ .str = null },
+            },
+        },
+    },
+    CmdType{
+        .name = .ls,
+        .usage = "[OPTIONS] [QUERY...]",
+        .info = "Lists open tasks, or tasks matching the given query.",
+        .min_arg = 0,
+        .options = &.{
+            .{
+                .long = "closed",
+                .short = 'c',
+                .info = "List the closed tasks",
+                .value = .{ .bool = null },
+            },
+            .{
+                .long = "ascending",
+                .short = 'a',
+                .info = "List tasks in ascending order",
+                .value = .{ .bool = null },
+            },
+            .{
+                .long = "id",
+                .short = 'i',
+                .info = "Sort tasks by ID",
+                .value = .{ .bool = null },
+            },
+            .{
+                .long = "debug",
+                .short = 'd',
+                .info = "Outputs opcodes of the query for debugging",
+                .value = .{ .bool = null },
+            },
+        },
+    },
+};
