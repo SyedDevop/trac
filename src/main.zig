@@ -51,7 +51,7 @@ pub fn main(init: std.process.Init) !void {
                 title = try allocator.dupe(u8, "New task");
             }
             defer allocator.free(title.?);
-
+            const safe_title = std.mem.trim(u8, title.?, " \t\n\r");
             const priority_i = try cli.getNumArg("priority") orelse 100;
             const priority = absClampToUnsigned(u8, priority_i);
 
@@ -62,7 +62,7 @@ pub fn main(init: std.process.Init) !void {
             const huid = try HUID.new(init.io, allocator, suffix);
             defer allocator.free(huid);
 
-            const task = Task.initEmpty(huid, title.?, tags, priority);
+            const task = Task.initEmpty(huid, safe_title, tags, priority);
             const cwd = std.Io.Dir.cwd();
 
             const tasks_db_dir = cwd.openDir(init.io, "tasks", .{}) catch |err| {
