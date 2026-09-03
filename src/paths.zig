@@ -12,7 +12,11 @@ pub const TasksDbPaths = struct {
     pub fn init(io: std.Io, alloc: std.mem.Allocator) !TasksDbPaths {
         const pwd = try getCwdPath(io);
         const tasks_path = try findTasksDatabase(pwd, io, alloc);
-        const relative_path = try std.fs.path.relativePosix(alloc, TASKS_DIR, pwd, tasks_path);
+        var relative_path = try std.fs.path.relativePosix(alloc, TASKS_DIR, pwd, tasks_path);
+        if (std.mem.eql(u8, relative_path, TASKS_DIR)) {
+            alloc.free(relative_path);
+            relative_path = try std.fs.path.join(alloc, &.{ "./", TASKS_DIR });
+        }
         return .{
             .found = tasks_path.len > 0,
             .cwd = pwd,
