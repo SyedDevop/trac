@@ -72,6 +72,7 @@ pub fn main(init: std.process.Init) !void {
                 }
                 return err;
             };
+            defer tasks_db_dir.close(init.io);
 
             const new_task_dir = tasks_db_dir.createDirPathOpen(init.io, huid, .{}) catch |err| {
                 if (err == error.PathAlreadyExists) {
@@ -80,6 +81,7 @@ pub fn main(init: std.process.Init) !void {
                 }
                 return err;
             };
+            defer new_task_dir.close(init.io);
 
             const file = new_task_dir.createFile(init.io, "TASK.md", .{ .exclusive = true }) catch |err| {
                 if (err == error.PathAlreadyExists) {
@@ -88,6 +90,7 @@ pub fn main(init: std.process.Init) !void {
                 }
                 return err;
             };
+            defer file.close(init.io);
 
             var file_w = file.writer(init.io, &.{});
             const sb_w = &file_w.interface;
