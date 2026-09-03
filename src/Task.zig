@@ -43,7 +43,7 @@ const Dump = struct {
 
     pub fn format(self: Dump, writer: *std.Io.Writer) std.Io.Writer.Error!void {
         const task = self.task;
-        try writer.print("{s}:1: [PRIORITY: {d:0>3}", .{ self.relative_path, task.priority });
+        try writer.print("{s}/{s}/TASK.md:1: [PRIORITY: {d: >3}", .{ self.relative_path, task.id, task.priority });
         try writeTags(", TAGS: ", task.tags, writer);
         try writer.print("] {s}", .{task.title});
     }

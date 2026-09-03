@@ -33,6 +33,9 @@ pub fn main(init: std.process.Init) !void {
         return;
     };
 
+    const tasks_db = try paths.TasksDbPaths.init(init.io, allocator);
+    defer tasks_db.deinit(allocator);
+
     switch (cli.running_cmd.name) {
         .root => unreachable,
         .init => {
@@ -47,8 +50,6 @@ pub fn main(init: std.process.Init) !void {
             std.log.info("Tasks '" ++ paths.TASKS_DIR ++ "' directory initialized.", .{});
         },
         .ls => {
-            const tasks_db = try paths.TasksDbPaths.init(init.io, allocator);
-            defer tasks_db.deinit(allocator);
             std.debug.print("{f}", .{tasks_db});
         },
         .new => {
@@ -71,13 +72,12 @@ pub fn main(init: std.process.Init) !void {
             const task = Task.initEmpty(huid, safe_title, tags, priority);
             const cwd = std.Io.Dir.cwd();
 
-            const tasks_db_dir = cwd.openDir(init.io, paths.TASKS_DIR, .{}) catch |err| {
-                if (err == error.FileNotFound) {
-                    std.log.err("'" ++ paths.TASKS_DIR ++ "' directory not found. Run `init` first to set up the tasks database.", .{});
-                    return;
-                }
-                return err;
-            };
+            if (!tasks_db.found) {
+                std.log.err("'" ++ paths.TASKS_DIR ++ "' directory not found. Run `init` first to set up the tasks database.", .{});
+                return;
+            }
+
+            const tasks_db_dir = try cwd.openDir(init.io, tasks_db.relative_path, .{});
             defer tasks_db_dir.close(init.io);
 
             const new_task_dir = tasks_db_dir.createDirPathOpen(init.io, huid, .{}) catch |err| {
@@ -102,9 +102,7 @@ pub fn main(init: std.process.Init) !void {
             const sb_w = &file_w.interface;
             try task.newMdContent(sb_w);
 
-            var path_buf: [std.fs.max_path_bytes]u8 = undefined;
-            const path_n = try file.realPath(init.io, &path_buf);
-            try stdout.print("{f}\n", .{task.dump(path_buf[0..path_n])});
+            try stdout.print("{f}\n", .{task.dump(tasks_db.relative_path)});
             try stdout.flush();
         },
         .find => std.log.info("TODO: {t} cmd is not implemented yet", .{cli.running_cmd.name}),
