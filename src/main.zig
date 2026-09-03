@@ -6,6 +6,7 @@ const Arg = Cli.Arg;
 const Cmd = @import("cmds.zig");
 const Task = @import("Task.zig");
 const HUID = @import("huid.zig");
+const paths = @import("paths.zig");
 
 pub fn main(init: std.process.Init) !void {
     var stdout_buffer: [1024]u8 = undefined;
@@ -36,14 +37,19 @@ pub fn main(init: std.process.Init) !void {
         .root => unreachable,
         .init => {
             const cwd = std.Io.Dir.cwd();
-            cwd.createDir(init.io, "tasks", .default_dir) catch |err| {
+            cwd.createDir(init.io, paths.TASKS_DIR, .default_dir) catch |err| {
                 if (err == error.PathAlreadyExists) {
-                    std.log.info("Tasks './tasks/' directory already exists.", .{});
+                    std.log.info("Tasks '" ++ paths.TASKS_DIR ++ "' directory already exists.", .{});
                     return;
                 }
                 return err;
             };
-            std.log.info("Tasks './tasks/' directory initialized.", .{});
+            std.log.info("Tasks '" ++ paths.TASKS_DIR ++ "' directory initialized.", .{});
+        },
+        .ls => {
+            const tasks_db = try paths.TasksDbPaths.init(init.io, allocator);
+            defer tasks_db.deinit(allocator);
+            std.debug.print("{f}", .{tasks_db});
         },
         .new => {
             var title = try cli.getAllPosArgAsStr();
@@ -65,9 +71,9 @@ pub fn main(init: std.process.Init) !void {
             const task = Task.initEmpty(huid, safe_title, tags, priority);
             const cwd = std.Io.Dir.cwd();
 
-            const tasks_db_dir = cwd.openDir(init.io, "tasks", .{}) catch |err| {
+            const tasks_db_dir = cwd.openDir(init.io, paths.TASKS_DIR, .{}) catch |err| {
                 if (err == error.FileNotFound) {
-                    std.log.err("'tasks/' directory not found. Run `init` first to set up the tasks database.", .{});
+                    std.log.err("'" ++ paths.TASKS_DIR ++ "' directory not found. Run `init` first to set up the tasks database.", .{});
                     return;
                 }
                 return err;
@@ -101,7 +107,6 @@ pub fn main(init: std.process.Init) !void {
             try stdout.print("{f}\n", .{task.dump(path_buf[0..path_n])});
             try stdout.flush();
         },
-        .ls => std.log.info("TODO: {t} cmd is not implemented yet", .{cli.running_cmd.name}),
         .find => std.log.info("TODO: {t} cmd is not implemented yet", .{cli.running_cmd.name}),
         .graph => std.log.info("TODO: {t} cmd is not implemented yet", .{cli.running_cmd.name}),
         .ref => std.log.info("TODO: {t} cmd is not implemented yet", .{cli.running_cmd.name}),
