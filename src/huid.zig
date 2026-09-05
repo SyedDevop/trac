@@ -17,7 +17,7 @@ pub fn isAlphaNumOrDash(x: u8) bool {
 }
 const isDigit = std.ascii.isDigit;
 pub fn isValid(huid: []const u8) bool {
-    if (huid.len < 16) return false;
+    if (huid.len < 15) return false;
     for (huid, 0..) |v, i| {
         switch (i) {
             0...7 => if (!isDigit(v)) return false,
@@ -45,6 +45,12 @@ test "isValid: minimal 16-char HUID (both dashes only, no tail)" {
 
 test "isValid: tail may itself contain dashes" {
     try testing.expect(isValid("12345678-123456-a-b-c-9"));
+}
+
+test "isValid: good" {
+    try testing.expect(isValid("20260905-161731"));
+    try testing.expect(isValid("20260801-161636"));
+    try testing.expect(isValid("20260902-155916"));
 }
 
 test "isValid: rejects" {
