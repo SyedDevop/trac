@@ -9,17 +9,28 @@ title: []const u8,
 status: Status,
 tags: []const []const u8,
 priority: u8,
-task_md_content: []const u8,
+md_content: []const u8,
 
-pub fn initEmpty(id: []const u8, title: []const u8, tags: []const []const u8, priority: u8) Task {
+pub fn init(
+    id: []const u8,
+    title: []const u8,
+    status: Status,
+    tags: Tags,
+    priority: u8,
+    md_content: []const u8,
+) Task {
     return Task{
         .id = id,
         .title = title,
-        .status = .OPEN,
+        .status = status,
         .tags = tags,
         .priority = priority,
-        .task_md_content = "No description.\n",
+        .md_content = md_content,
     };
+}
+
+pub fn initEmpty(id: []const u8, title: []const u8, tags: Task, priority: u8) Task {
+    return init(id, title, .OPEN, tags, priority, "No description.\n");
 }
 
 pub fn newMdContent(self: *const Task, w: *std.Io.Writer) !void {
