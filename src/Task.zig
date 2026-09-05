@@ -29,7 +29,7 @@ pub fn init(
     };
 }
 
-pub fn initEmpty(id: []const u8, title: []const u8, tags: Task, priority: u8) Task {
+pub fn initEmpty(id: []const u8, title: []const u8, tags: Tags, priority: u8) Task {
     return init(id, title, .OPEN, tags, priority, "No description.\n");
 }
 
