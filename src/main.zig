@@ -56,11 +56,7 @@ pub fn main(init: std.process.Init) !void {
                 return;
             }
 
-            for (cli.computed_args.data.items) |it| {
-                std.debug.print("{f}\n", .{it});
-            }
             const closed = try cli.getBoolArg("closed");
-            std.debug.print("closed {any}\n", .{closed});
             const arena = init.arena.allocator();
             defer {
                 // printArenaState(init.arena);
@@ -73,6 +69,18 @@ pub fn main(init: std.process.Init) !void {
                 return;
             }
 
+            const order_asc = try cli.getBoolArg("ascending");
+            const by_id = try cli.getBoolArg("id");
+
+            std.mem.sortUnstable(
+                Task,
+                tasks,
+                Task.SortCtx{
+                    .by = if (by_id) .ID else .PRIORITY,
+                    .order = if (order_asc) .ASC else .DESC,
+                },
+                Task.sortEq(),
+            );
             for (tasks) |ta| {
                 if (closed and ta.status == .CLOSED) {
                     std.debug.print("{f}\n", .{ta.dump(tasks_db.relative_path)});

@@ -45,6 +45,31 @@ pub fn initEmpty(id: []const u8, title: []const u8, tags: Tags, priority: u8) Ta
     return init(id, title, .OPEN, tags, priority, "No description.\n");
 }
 
+const SortBy = enum { ID, PRIORITY };
+const SortOrder = enum { ASC, DESC };
+pub const SortCtx = struct { by: SortBy, order: SortOrder };
+
+pub fn sortEq() fn (SortCtx, Task, Task) bool {
+    return struct {
+        pub fn inner(ctx: SortCtx, a: Task, b: Task) bool {
+            switch (ctx.by) {
+                .ID => {
+                    return switch (ctx.order) {
+                        .ASC => std.mem.lessThan(u8, a.id, b.id),
+                        .DESC => std.mem.lessThan(u8, b.id, a.id),
+                    };
+                },
+                .PRIORITY => {
+                    return switch (ctx.order) {
+                        .ASC => a.priority < b.priority,
+                        .DESC => a.priority > b.priority,
+                    };
+                },
+            }
+        }
+    }.inner;
+}
+
 /// Make shore the `Allocator` is from ArenaAllocator
 /// Because we wont free the TASKS.md and path and etc..
 /// The Task hold's the slices for all the string data
