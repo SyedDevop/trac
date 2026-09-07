@@ -1,14 +1,24 @@
 const std = @import("std");
 const Task = @This();
 
-pub const Status = enum { OPEN, CLOSED };
-pub const Tags = []const []const u8;
+pub const Status = enum {
+    OPEN,
+    CLOSED,
+
+    /// Returns the Status from a string
+    /// Returns OPEN if the string is not a valid Status
+    pub fn fromString(str: []const u8) Status {
+        return std.meta.stringToEnum(Task.Status, str) orelse .OPEN;
+    }
+};
+
+pub const Tags = std.ArrayList([]const u8);
 
 id: []const u8,
 title: []const u8,
 status: Status,
-tags: []const []const u8,
-priority: u8,
+tags: Tags,
+priority: u32,
 md_content: []const u8,
 
 pub fn init(
@@ -16,7 +26,7 @@ pub fn init(
     title: []const u8,
     status: Status,
     tags: Tags,
-    priority: u8,
+    priority: u32,
     md_content: []const u8,
 ) Task {
     return Task{
@@ -40,12 +50,20 @@ pub fn newMdContent(self: *const Task, w: *std.Io.Writer) !void {
     try w.print("- PRIORITY: {d}\n", .{self.priority});
 
     try w.writeAll("- TAGS:");
-    try writeTags(" ", self.tags, w);
+    try writeTags(" ", self.tags.items, w);
     try w.writeByte('\n');
 
     try w.writeByte('\n');
     try w.writeAll("No description.\n");
     try w.flush();
+}
+
+pub fn addTask(self: *Task, alloc: std.mem.Allocator, tag: []const u8) !void {
+    try self.tags.append(alloc, tag);
+}
+
+pub fn deinit(self: *Task, alloc: std.mem.Allocator) void {
+    self.tags.deinit(alloc);
 }
 
 const Dump = struct {
@@ -55,7 +73,7 @@ const Dump = struct {
     pub fn format(self: Dump, writer: *std.Io.Writer) std.Io.Writer.Error!void {
         const task = self.task;
         try writer.print("{s}/{s}/TASK.md:1: [PRIORITY: {d: >3}", .{ self.relative_path, task.id, task.priority });
-        try writeTags(", TAGS: ", task.tags, writer);
+        try writeTags(", TAGS: ", task.tags.items, writer);
         try writer.print("] {s}", .{task.title});
     }
 };
@@ -69,11 +87,11 @@ pub fn dump(task: *const Task, relative_path: []const u8) Dump {
 
 // @section:Tags------------------------------------
 
-pub fn writeTags(prefix: []const u8, tags: Tags, w: *std.Io.Writer) !void {
+pub fn writeTags(prefix: []const u8, tags: []const []const u8, w: *std.Io.Writer) !void {
     if (tags.len <= 0) return;
     try w.writeAll(prefix);
     for (tags, 0..) |tag, i| {
-        if (i > 0) try w.writeByte(',');
+        if (i > 0) try w.writeAll(", ");
         try w.writeAll(tag);
     }
 }
