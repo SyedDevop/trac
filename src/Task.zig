@@ -1,4 +1,6 @@
 const std = @import("std");
+const huid = @import("huid.zig");
+const md = @import("md.zig");
 const Task = @This();
 
 pub const Status = enum {
@@ -43,6 +45,62 @@ pub fn initEmpty(id: []const u8, title: []const u8, tags: Tags, priority: u8) Ta
     return init(id, title, .OPEN, tags, priority, "No description.\n");
 }
 
+/// Make shore the `Allocator` is from ArenaAllocator
+/// Because we wont free the TASKS.md and path and etc..
+/// The Task hold's the slices for all the string data
+pub fn loadTasks(io: std.Io, arena: std.mem.Allocator, tasks_re_path: []const u8) ![]Task {
+    const cwd = std.Io.Dir.cwd();
+
+    const tasks_dir = try cwd.openDir(io, tasks_re_path, .{ .iterate = true });
+    defer tasks_dir.close(io);
+
+    var tasks: std.ArrayList(Task) = .empty;
+
+    var tasks_it = tasks_dir.iterate();
+    while (try tasks_it.next(io)) |it| {
+        if (!huid.isValid(it.name)) continue;
+        // std.debug.print("Invalid HUID: {s}\n", .{it.name});
+
+        if (it.kind != .directory) continue;
+        // std.debug.print("Not a directory: {s}\n", .{it.name});
+
+        const tasks_md_path = try std.fs.path.join(arena, &.{ tasks_re_path, it.name, "TASK.md" });
+        const tasks_md_file = cwd.readFileAlloc(io, tasks_md_path, arena, .unlimited) catch |err| switch (err) {
+            // std.debug.print("No TASK.md file in: {s}\n", .{it.name});
+            error.FileNotFound => continue,
+            else => return err,
+        };
+
+        //TODO: Can This be initialized before the loop?
+        var token = std.mem.tokenizeScalar(u8, tasks_md_file, '\n');
+        var stats = std.StringHashMap([]const u8).init(arena);
+        try stats.put("STATUS", "OPEN");
+        try stats.put("PRIORITY", "999999");
+        try stats.put("TAGS", "");
+
+        var title: []const u8 = undefined;
+        var content: []const u8 = "";
+
+        if (md.parseTitle(&token, &title)) {
+            _ = try md.parseBody(&token, &stats);
+            content = token.rest();
+        }
+
+        const priority_i = try std.fmt.parseInt(u32, stats.get("PRIORITY").?, 10);
+        var task = Task.init(
+            try arena.dupe(u8, it.name),
+            title,
+            .fromString(stats.get("STATUS").?),
+            .empty,
+            priority_i,
+            content,
+        );
+        try task.tagsFromString(arena, stats.get("TAGS").?);
+        try tasks.append(arena, task);
+    }
+    return tasks.toOwnedSlice(arena);
+}
+
 pub fn newMdContent(self: *const Task, w: *std.Io.Writer) !void {
     try w.print("# {s}\n", .{self.title});
     try w.writeByte('\n');
@@ -58,7 +116,18 @@ pub fn newMdContent(self: *const Task, w: *std.Io.Writer) !void {
     try w.flush();
 }
 
-pub fn addTask(self: *Task, alloc: std.mem.Allocator, tag: []const u8) !void {
+pub fn tagsFromString(self: *Task, alloc: std.mem.Allocator, tags: []const u8) !void {
+    if (tags.len <= 0) return;
+    var tag_it = std.mem.splitScalar(u8, tags, ',');
+    while (tag_it.next()) |tag| {
+        const safe_tag = md.trimSpace(tag);
+        if (safe_tag.len > 0) {
+            try self.addTags(alloc, safe_tag);
+        }
+    }
+}
+
+pub fn addTags(self: *Task, alloc: std.mem.Allocator, tag: []const u8) !void {
     try self.tags.append(alloc, tag);
 }
 
@@ -72,7 +141,7 @@ const Dump = struct {
 
     pub fn format(self: Dump, writer: *std.Io.Writer) std.Io.Writer.Error!void {
         const task = self.task;
-        try writer.print("{s}/{s}/TASK.md:1: [PRIORITY: {d: >3}", .{ self.relative_path, task.id, task.priority });
+        try writer.print("{s}/{s}/TASK.md:1: ({t:>6}) [PRIORITY: {d: >3}", .{ self.relative_path, task.id, task.status, task.priority });
         try writeTags(", TAGS: ", task.tags.items, writer);
         try writer.print("] {s}", .{task.title});
     }

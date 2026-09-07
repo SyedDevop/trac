@@ -7,6 +7,7 @@ const Cmd = @import("cmds.zig");
 const Task = @import("Task.zig");
 const HUID = @import("huid.zig");
 const paths = @import("paths.zig");
+const md = @import("md.zig");
 
 pub fn main(init: std.process.Init) !void {
     var stdout_buffer: [1024]u8 = undefined;
@@ -50,7 +51,35 @@ pub fn main(init: std.process.Init) !void {
             std.log.info("Tasks '" ++ paths.TASKS_DIR ++ "' directory initialized.", .{});
         },
         .ls => {
-            std.debug.print("{f}", .{tasks_db});
+            if (!tasks_db.found) {
+                std.log.err("'" ++ paths.TASKS_DIR ++ "' directory not found. Run `init` first to set up the tasks database.", .{});
+                return;
+            }
+
+            for (cli.computed_args.data.items) |it| {
+                std.debug.print("{f}\n", .{it});
+            }
+            const closed = try cli.getBoolArg("closed");
+            std.debug.print("closed {any}\n", .{closed});
+            const arena = init.arena.allocator();
+            defer {
+                // printArenaState(init.arena);
+                _ = init.arena.reset(.free_all);
+            }
+
+            const tasks = try Task.loadTasks(init.io, arena, tasks_db.relative_path);
+            if (tasks.len == 0) {
+                std.log.info("No tasks found.", .{});
+                return;
+            }
+
+            for (tasks) |ta| {
+                if (closed and ta.status == .CLOSED) {
+                    std.debug.print("{f}\n", .{ta.dump(tasks_db.relative_path)});
+                } else if (!closed and ta.status == .OPEN) {
+                    std.debug.print("{f}\n", .{ta.dump(tasks_db.relative_path)});
+                }
+            }
         },
         .new => {
             var title = try cli.getAllPosArgAsStr();
@@ -63,13 +92,13 @@ pub fn main(init: std.process.Init) !void {
             const priority = absClampToUnsigned(u8, priority_i);
 
             const tags = try findAllTags(cli.computed_args.data.items, allocator);
-            defer allocator.free(tags);
 
             const suffix = try cli.getStrArg("suffix");
             const huid = try HUID.new(init.io, allocator, suffix);
             defer allocator.free(huid);
 
-            const task = Task.initEmpty(huid, safe_title, tags, priority);
+            var task = Task.initEmpty(huid, safe_title, tags, priority);
+            defer task.deinit(allocator);
             const cwd = std.Io.Dir.cwd();
 
             if (!tasks_db.found) {
@@ -112,8 +141,8 @@ pub fn main(init: std.process.Init) !void {
     }
 }
 
-fn findAllTags(args: []Arg, alloc: std.mem.Allocator) ![][]const u8 {
-    var tags_list: std.ArrayList([]const u8) = .empty;
+fn findAllTags(args: []Arg, alloc: std.mem.Allocator) !Task.Tags {
+    var tags_list: Task.Tags = .empty;
     for (args) |arg| {
         if (arg.long != null and !std.mem.eql(u8, arg.long.?, "tags")) continue;
         if (arg.value != .str) continue;
@@ -121,8 +150,25 @@ fn findAllTags(args: []Arg, alloc: std.mem.Allocator) ![][]const u8 {
             try tags_list.append(alloc, t);
         }
     }
-    return try tags_list.toOwnedSlice(alloc);
+    return tags_list;
 }
+
+fn printArenaState(arena: *std.heap.ArenaAllocator) void {
+    std.debug.print("Arena: {B}\n", .{arena.queryCapacity()});
+    var free = arena.state.free_list;
+    var i: usize = 1;
+    while (free) |fl| : (i += 1) {
+        std.debug.print("Free-- [{d:0>2}]: End Index: {d}\n", .{ i, fl.end_index });
+        free = fl.next;
+    }
+    i = 1;
+    var used = arena.state.used_list;
+    while (used) |fl| : (i += 1) {
+        std.debug.print("Used-- [{d:0>2}]: End Index: {d}\n", .{ i, fl.end_index });
+        used = fl.next;
+    }
+}
+
 fn absClampToUnsigned(T: type, value: anytype) T {
     comptime {
         switch (@typeInfo(T)) {
