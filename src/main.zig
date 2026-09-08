@@ -229,7 +229,8 @@ pub fn main(init: std.process.Init) !void {
 
             try stdout.print("STATUS:    {t}\n", .{state});
             try stdout.print("TOTAL:     {d}\n", .{total});
-            try stdout.print("UNTAGGED:  {d}\n", .{untagged});
+            if (untagged > 0)
+                try stdout.print("UNTAGGED:  {d}\n", .{untagged});
 
             if (tag_map.count() > 0) try stdout.print("TAGGED:\n", .{});
             var tag_it = tag_map.iterator();
