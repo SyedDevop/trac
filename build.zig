@@ -3,6 +3,7 @@ const std = @import("std");
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+    const include_tasks_md_content = b.option(bool, "include_content", "Include the TASKS.md content in Task.task_md_content") orelse false;
 
     const zarg = b.dependency("zarg", .{
         .target = target,
@@ -20,7 +21,9 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
-
+    const opt = b.addOptions();
+    opt.addOption(bool, "include_tasks_md_content", include_tasks_md_content);
+    exe.root_module.addOptions("buildOptions", opt);
     b.installArtifact(exe);
 
     const run_step = b.step("run", "Run this project");
