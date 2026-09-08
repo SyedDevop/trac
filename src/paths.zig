@@ -8,6 +8,7 @@ pub const TasksDbPaths = struct {
     cwd: []u8,
     tasks_path: []u8,
     relative_path: []u8,
+    project_root: []const u8,
 
     pub fn init(io: std.Io, alloc: std.mem.Allocator) !TasksDbPaths {
         const pwd = try getCwdPath(io);
@@ -17,12 +18,24 @@ pub const TasksDbPaths = struct {
             alloc.free(relative_path);
             relative_path = try std.fs.path.join(alloc, &.{ "./", TASKS_DIR });
         }
+        const project_root = std.fs.path.dirname(tasks_path) orelse tasks_path;
         return .{
             .found = tasks_path.len > 0,
             .cwd = pwd,
             .tasks_path = tasks_path,
             .relative_path = relative_path,
+            .project_root = project_root,
         };
+    }
+
+    /// Returns true if the tasks directory was found
+    /// And logs the error message.
+    pub fn foundPath(self: TasksDbPaths) bool {
+        if (!self.found) {
+            std.log.err("'" ++ TASKS_DIR ++ "' directory not found. Run `init` first to set up the tasks database.", .{});
+            return false;
+        }
+        return true;
     }
 
     pub fn deinit(self: TasksDbPaths, alloc: std.mem.Allocator) void {
@@ -37,9 +50,10 @@ pub const TasksDbPaths = struct {
         const found = if (self.found) "Found" else "Did Not find";
         try writer.print("{s} {s} directory.\n", .{ found, TASKS_DIR });
         try writer.print("Paths: \n", .{});
-        try writer.print("  Cwd      : {s}\n", .{self.cwd});
-        try writer.print("  Tasks    : {s}\n", .{self.tasks_path});
-        try writer.print("  Relative : {s}\n", .{self.relative_path});
+        try writer.print("  Cwd          : {s}\n", .{self.cwd});
+        try writer.print("  Tasks        : {s}\n", .{self.tasks_path});
+        try writer.print("  Relative     : {s}\n", .{self.relative_path});
+        try writer.print("  Project Root : {s}\n", .{self.project_root});
     }
 };
 

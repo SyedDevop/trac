@@ -1,6 +1,7 @@
 const std = @import("std");
 const TimePart = @import("TimePart.zig");
 
+pub const REGEX = "/[0-9]{8}-[0-9]{6}(-[a-zA-Z0-9\\-]*)?/";
 pub const FMT = "{d:0>2}{d:0>2}{d:0>2}-{d:0>2}{d:0>2}{d:0>2}";
 
 pub fn new(io: std.Io, alloc: std.mem.Allocator, suffix: ?[]const u8) ![]u8 {

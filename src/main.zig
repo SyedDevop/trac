@@ -142,9 +142,62 @@ pub fn main(init: std.process.Init) !void {
             try stdout.print("{f}\n", .{task.dump(tasks_db.relative_path)});
             try stdout.flush();
         },
+        .ref => {
+            if (!tasks_db.foundPath()) return;
+            var huid: ?[]const u8 = null;
+            if (cli.pos_args) |pos_args| for (pos_args) |pos_arg| {
+                if (huid != null) {
+                    std.log.err("Several HUIDs is not supported", .{});
+                    return;
+                }
+                if (!HUID.isValid(pos_arg)) {
+                    std.log.err("`{s}` is not a valid HUID. Valid HUID matches regexp `{s}`", .{ pos_arg, HUID.REGEX });
+                    return;
+                }
+                huid = pos_arg;
+            };
+
+            var path: []const u8 = tasks_db.cwd;
+
+            if (huid == null) {
+                const cur_dir = std.fs.path.basename(tasks_db.cwd);
+                if (!HUID.isValid(cur_dir)) {
+                    std.log.err("You are not inside any task folder. Pass the ID of a task as an argument to search for referers of that task.", .{});
+                    return;
+                }
+                huid = cur_dir;
+                path = std.fs.path.dirname(tasks_db.cwd) orelse tasks_db.cwd;
+            }
+
+            const grep_path = try std.fs.path.join(
+                allocator,
+                &.{ tasks_db.relative_path, "/.." },
+            );
+
+            defer allocator.free(grep_path);
+            const argv: []const []const u8 = &.{
+                "grep",
+                "--exclude-dir=.git",
+                "-Irn",
+                huid.?,
+                grep_path,
+            };
+
+            std.debug.print("CMD: ", .{});
+            for (argv) |v| std.debug.print("{s} ", .{v});
+            std.debug.print("\n", .{});
+            const ter = try std.process.run(allocator, init.io, .{
+                .cwd = .{ .path = path },
+                .argv = argv,
+            });
+            defer allocator.free(ter.stdout);
+            defer allocator.free(ter.stderr);
+
+            std.debug.print("{s}", .{ter.stdout});
+            std.debug.print("{s}", .{ter.stderr});
+        },
         .find => std.log.info("TODO: {t} cmd is not implemented yet", .{cli.running_cmd.name}),
         .graph => std.log.info("TODO: {t} cmd is not implemented yet", .{cli.running_cmd.name}),
-        .ref => std.log.info("TODO: {t} cmd is not implemented yet", .{cli.running_cmd.name}),
         .summary => std.log.info("TODO: {t} cmd is not implemented yet", .{cli.running_cmd.name}),
     }
 }
