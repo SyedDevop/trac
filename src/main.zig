@@ -183,9 +183,11 @@ pub fn main(init: std.process.Init) !void {
                 grep_path,
             };
 
-            std.debug.print("CMD: ", .{});
-            for (argv) |v| std.debug.print("{s} ", .{v});
-            std.debug.print("\n", .{});
+            try stdout.writeAll("CMD: ");
+            for (argv) |v| try stdout.print("{s} ", .{v});
+            try stdout.writeByte('\n');
+            try stdout.flush();
+
             const ter = try std.process.run(allocator, init.io, .{
                 .cwd = .{ .path = path },
                 .argv = argv,
@@ -193,8 +195,9 @@ pub fn main(init: std.process.Init) !void {
             defer allocator.free(ter.stdout);
             defer allocator.free(ter.stderr);
 
-            std.debug.print("{s}", .{ter.stdout});
-            std.debug.print("{s}", .{ter.stderr});
+            try stdout.print("{s}", .{ter.stdout});
+            try stdout.print("{s}", .{ter.stderr});
+            try stdout.flush();
         },
         .find => std.log.info("TODO: {t} cmd is not implemented yet", .{cli.running_cmd.name}),
         .graph => std.log.info("TODO: {t} cmd is not implemented yet", .{cli.running_cmd.name}),
