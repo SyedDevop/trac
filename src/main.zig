@@ -239,7 +239,51 @@ pub fn main(init: std.process.Init) !void {
             }
             try stdout.flush();
         },
-        .find => std.log.info("TODO: {t} cmd is not implemented yet", .{cli.running_cmd.name}),
+        .find => {
+            if (!tasks_db.foundPath()) return;
+
+            var huid: ?[]const u8 = null;
+            if (cli.pos_args) |pos_args| for (pos_args) |pos_arg| {
+                if (huid != null) {
+                    std.log.err("Several HUIDs is not supported", .{});
+                    return;
+                }
+                if (!HUID.isValid(pos_arg)) {
+                    std.log.err("`{s}` is not a valid HUID. Valid HUID matches regexp `{s}`", .{ pos_arg, HUID.REGEX });
+                    return;
+                }
+                huid = pos_arg;
+            };
+
+            if (huid == null) {
+                std.log.err("No HUID was provided", .{});
+                try cli.help(stdout);
+                try stdout.flush();
+                return;
+            }
+
+            const arena = init.arena.allocator();
+            defer {
+                // printArenaState(init.arena);
+                _ = init.arena.reset(.free_all);
+            }
+            const tasks = try Task.loadTasks(init.io, arena, tasks_db.relative_path);
+            if (tasks.len == 0) {
+                std.log.info("No tasks found.", .{});
+                return;
+            }
+            var found = false;
+            for (tasks) |ta| {
+                if (std.mem.eql(u8, ta.id, huid.?)) {
+                    std.debug.print("{f}\n", .{ta.dump(tasks_db.relative_path)});
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                std.log.err("No task with with HUID `{s}` was found", .{huid.?});
+            }
+        },
         .graph => std.log.info("TODO: {t} cmd is not implemented yet", .{cli.running_cmd.name}),
     }
 }
