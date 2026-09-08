@@ -51,12 +51,11 @@ pub fn main(init: std.process.Init) !void {
             std.log.info("Tasks '" ++ paths.TASKS_DIR ++ "' directory initialized.", .{});
         },
         .ls => {
-            if (!tasks_db.found) {
-                std.log.err("'" ++ paths.TASKS_DIR ++ "' directory not found. Run `init` first to set up the tasks database.", .{});
-                return;
-            }
+            if (!tasks_db.foundPath()) return;
 
             const closed = try cli.getBoolArg("closed");
+            const state: Task.Status = if (closed) .CLOSED else .OPEN;
+
             const arena = init.arena.allocator();
             defer {
                 // printArenaState(init.arena);
@@ -82,11 +81,8 @@ pub fn main(init: std.process.Init) !void {
                 Task.sortEq(),
             );
             for (tasks) |ta| {
-                if (closed and ta.status == .CLOSED) {
-                    std.debug.print("{f}\n", .{ta.dump(tasks_db.relative_path)});
-                } else if (!closed and ta.status == .OPEN) {
-                    std.debug.print("{f}\n", .{ta.dump(tasks_db.relative_path)});
-                }
+                if (ta.status != state) continue;
+                std.debug.print("{f}\n", .{ta.dump(tasks_db.relative_path)});
             }
         },
         .new => {
@@ -109,10 +105,7 @@ pub fn main(init: std.process.Init) !void {
             defer task.deinit(allocator);
             const cwd = std.Io.Dir.cwd();
 
-            if (!tasks_db.found) {
-                std.log.err("'" ++ paths.TASKS_DIR ++ "' directory not found. Run `init` first to set up the tasks database.", .{});
-                return;
-            }
+            if (!tasks_db.foundPath()) return;
 
             const tasks_db_dir = try cwd.openDir(init.io, tasks_db.relative_path, .{});
             defer tasks_db_dir.close(init.io);
@@ -144,6 +137,7 @@ pub fn main(init: std.process.Init) !void {
         },
         .ref => {
             if (!tasks_db.foundPath()) return;
+
             var huid: ?[]const u8 = null;
             if (cli.pos_args) |pos_args| for (pos_args) |pos_arg| {
                 if (huid != null) {
