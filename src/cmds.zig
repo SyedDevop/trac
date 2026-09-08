@@ -74,6 +74,12 @@ pub const CMD_LIST = [_]CmdType{
                 .value = .{ .bool = null },
             },
             .{
+                .long = "all",
+                .short = 'A',
+                .info = "List all tasks, including closed ones",
+                .value = .{ .bool = null },
+            },
+            .{
                 .long = "ascending",
                 .short = 'a',
                 .info = "List tasks in ascending order",

@@ -80,8 +80,12 @@ pub fn main(init: std.process.Init) !void {
                 },
                 Task.sortEq(),
             );
+
+            const all = try cli.getBoolArg("A");
+            std.debug.print("Need all {any}\n", .{all});
+
             for (tasks) |ta| {
-                if (ta.status != state) continue;
+                if (!all and ta.status != state) continue;
                 std.debug.print("{f}\n", .{ta.dump(tasks_db.relative_path)});
             }
         },
