@@ -199,9 +199,49 @@ pub fn main(init: std.process.Init) !void {
             try stdout.print("{s}", .{ter.stderr});
             try stdout.flush();
         },
+        .summary => {
+            if (!tasks_db.foundPath()) return;
+
+            const closed = try cli.getBoolArg("closed");
+            const state: Task.Status = if (closed) .CLOSED else .OPEN;
+
+            const arena = init.arena.allocator();
+            defer {
+                // printArenaState(init.arena);
+                _ = init.arena.reset(.free_all);
+            }
+
+            const tasks = try Task.loadTasks(init.io, arena, tasks_db.relative_path);
+            var tag_map = std.StringHashMap(usize).init(allocator);
+            defer tag_map.deinit();
+
+            var total: usize = 0;
+            var untagged: usize = 0;
+            for (tasks) |task| {
+                if (task.status != state) continue;
+
+                total += 1;
+                if (task.tags.items.len == 0) untagged += 1;
+
+                for (task.tags.items) |tag| {
+                    const entry = try tag_map.getOrPut(tag);
+                    if (entry.found_existing) entry.value_ptr.* += 1 else entry.value_ptr.* = 1;
+                }
+            }
+
+            try stdout.print("STATUS:    {t}\n", .{state});
+            try stdout.print("TOTAL:     {d}\n", .{total});
+            try stdout.print("UNTAGGED:  {d}\n", .{untagged});
+
+            if (tag_map.count() > 0) try stdout.print("TAGGED:\n", .{});
+            var tag_it = tag_map.iterator();
+            while (tag_it.next()) |it| {
+                try stdout.print(" {s:>7} => {d}\n", .{ it.key_ptr.*, it.value_ptr.* });
+            }
+            try stdout.flush();
+        },
         .find => std.log.info("TODO: {t} cmd is not implemented yet", .{cli.running_cmd.name}),
         .graph => std.log.info("TODO: {t} cmd is not implemented yet", .{cli.running_cmd.name}),
-        .summary => std.log.info("TODO: {t} cmd is not implemented yet", .{cli.running_cmd.name}),
     }
 }
 
