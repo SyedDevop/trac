@@ -10,6 +10,12 @@ const Tokenizer = struct {
         };
     }
 
+    pub fn itNext(self: *Tokenizer) ?[]const u8 {
+        const tok = self.next();
+        if (tok.len == 0) return null;
+        return tok;
+    }
+
     pub fn next(self: *Tokenizer) []const u8 {
         if (!self.isSafeStep()) return "";
         self.trimLeft();
@@ -62,6 +68,16 @@ const Tokenizer = struct {
         const num = @min(self.src.len - self.cursor, n);
         defer self.cursor += num;
         return self.src[self.cursor .. self.cursor + num];
+    }
+
+    test "itNext" {
+        var t = Tokenizer.init(" world [Hahaha] ");
+        try std.testing.expectEqualSlices(u8, "world", t.itNext().?);
+        try std.testing.expectEqualSlices(u8, "[", t.itNext().?);
+        try std.testing.expectEqualSlices(u8, "Hahaha", t.itNext().?);
+        try std.testing.expectEqualSlices(u8, "]", t.itNext().?);
+        try std.testing.expectEqual(null, t.itNext());
+        try std.testing.expectEqual(null, t.itNext());
     }
 
     test "next" {
