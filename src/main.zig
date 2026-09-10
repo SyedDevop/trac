@@ -56,13 +56,12 @@ pub fn main(init: std.process.Init) !void {
             const closed = try cli.getBoolArg("closed");
             const state: Task.Status = if (closed) .CLOSED else .OPEN;
 
-            const arena = init.arena.allocator();
+            const tasks = try Task.loadTasks(init.io, allocator, tasks_db.relative_path);
             defer {
-                // printArenaState(init.arena);
-                _ = init.arena.reset(.free_all);
+                for (tasks) |*ta| ta.deinit(allocator);
+                allocator.free(tasks);
             }
 
-            const tasks = try Task.loadTasks(init.io, arena, tasks_db.relative_path);
             if (tasks.len == 0) {
                 std.log.info("No tasks found.", .{});
                 return;
@@ -197,6 +196,7 @@ pub fn main(init: std.process.Init) !void {
             try stdout.print("{s}", .{ter.stderr});
             try stdout.flush();
         },
+
         .summary => {
             if (!tasks_db.foundPath()) return;
 
@@ -239,6 +239,7 @@ pub fn main(init: std.process.Init) !void {
             }
             try stdout.flush();
         },
+
         .find => {
             if (!tasks_db.foundPath()) return;
 
@@ -284,6 +285,7 @@ pub fn main(init: std.process.Init) !void {
                 std.log.err("No task with with HUID `{s}` was found", .{huid.?});
             }
         },
+
         .graph => std.log.info("TODO: {t} cmd is not implemented yet", .{cli.running_cmd.name}),
     }
 }

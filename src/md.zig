@@ -53,6 +53,7 @@ pub fn parseTitle(str: *Source, title: *[]const u8) bool {
         title.* = "!!! INVALID: TASK TITLE MUST START WITH # !!!";
         return false;
     }
+    title.* = std.mem.trimStart(u8, title.*, "# ");
     return true;
 }
 
