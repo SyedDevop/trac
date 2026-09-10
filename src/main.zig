@@ -81,8 +81,8 @@ pub fn main(init: std.process.Init) !void {
             );
 
             const all = try cli.getBoolArg("A");
-            std.debug.print("Need all {any}\n", .{all});
-
+            const input = try cli.getAllPosArgAsStr() orelse "";
+            _ = input;
             for (tasks) |ta| {
                 if (!all and ta.status != state) continue;
                 std.debug.print("{f}\n", .{ta.dump(tasks_db.relative_path)});
