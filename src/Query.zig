@@ -76,9 +76,9 @@ pub fn printOp(op: Op, w: *std.Io.Writer) !void {
         .op_gte => try w.writeAll("OP_GTE\n"),
         .op_eq => try w.writeAll("OP_EQ\n"),
         .op_neq => try w.writeAll("OP_NEQ\n"),
-        .op_tag => |t| try w.print("OP_TAG: {s}\n", .{t}),
-        .op_id => |id| try w.print("OP_ID: {s}\n", .{id}),
-        .op_integer => |nu| try w.print("OP_INTEGER: {d}\n", .{nu}),
+        .op_tag => |t| try w.print("OP_TAG {s}\n", .{t}),
+        .op_id => |id| try w.print("OP_ID {s}\n", .{id}),
+        .op_integer => |nu| try w.print("OP_INTEGER {d}\n", .{nu}),
     }
 }
 
@@ -130,7 +130,7 @@ pub fn parse(self: *Query) ParseError!void {
     const end = self.tokenizer.next();
     if (end.len != 0) {
         std.debug.print(messages.INFIX_OPERATORS, .{});
-        try self.errorReport(.err, self.tokenizer.token_pos, "Unexpected infix operator.", .{});
+        try self.errorReport(.err, self.tokenizer.token_pos, "Unexpected infix operator `{s}`", .{end});
         return ParseError.UnexpectedInfix;
     }
 }
@@ -233,12 +233,12 @@ pub fn format(
 ) std.Io.Writer.Error!void {
     const save_cursor = self.tokenizer.cursor;
     self.tokenizer.cursor = 0;
-    try writer.writeAll("TOKENS: \n");
+    try writer.writeAll("TOKENS:\n");
     while (self.tokenizer.itNext()) |tok| {
         try writer.print("    {s}\n", .{tok});
     }
     try writer.writeByte('\n');
-    try writer.writeAll("QUERY: \n");
+    try writer.writeAll("OPS:\n");
     for (self.query.items) |qu| {
         try writer.writeAll("    ");
         try printOp(qu, writer);
@@ -424,32 +424,109 @@ inline fn strEq(a: []const u8, b: []const u8) bool {
     return mem.eql(u8, a, b);
 }
 
-test "Opcodes" {
-    const io = std.testing.io;
+test "ls_query_negation_of_complex_expression_in_parens" {
     const alloc = std.testing.allocator;
-    var query = Query.init(alloc, "priority");
+    var query = Query.init(alloc, "not [tagged or :bug and :test and :foo and :bar]");
     defer query.deinit(alloc);
+    try query.parse();
+    const output = try std.fmt.allocPrint(alloc, "{f}", .{&query});
+    defer alloc.free(output);
 
-    //query: :bug and not :stream
-    try query.addOp(alloc, .{ .code = .op_tagged, .loc = 9 });
-    try query.addOp(alloc, .{ .code = .op_not, .loc = 9 });
-    try query.addOp(alloc, .{ .code = .{ .op_tag = "bug" }, .loc = 0 });
-    try query.addOp(alloc, .{ .code = .op_not, .loc = 9 });
-    try query.addOp(alloc, .{ .code = .op_or, .loc = 9 });
-    // .{ .op = .{ .op_tag = "stream" }, .loc = 12 },
-    // .{ .op = .op_and, .loc = 5 },
+    try std.testing.expectEqualStrings(
+        \\TOKENS:
+        \\    not
+        \\    [
+        \\    tagged
+        \\    or
+        \\    :bug
+        \\    and
+        \\    :test
+        \\    and
+        \\    :foo
+        \\    and
+        \\    :bar
+        \\    ]
+        \\
+        \\OPS:
+        \\    OP_TAGGED
+        \\    OP_TAG bug
+        \\    OP_TAG test
+        \\    OP_AND
+        \\    OP_TAG foo
+        \\    OP_AND
+        \\    OP_TAG bar
+        \\    OP_AND
+        \\    OP_OR
+        \\    OP_NOT
+        \\
+    , output);
+}
 
-    const task_paths = try paths.TasksDbPaths.init(io, alloc);
-    defer task_paths.deinit(alloc);
-    const tasks = try Task.loadTasks(io, alloc, task_paths.relative_path);
-    defer {
-        for (tasks) |*t| t.deinit(alloc);
-        alloc.free(tasks);
-    }
+test "ls_query_not_stuck_to_open_paren" {
+    const alloc = std.testing.allocator;
+    var query = Query.init(alloc, "not[:bug and :test] and :query");
+    defer query.deinit(alloc);
+    try query.parse();
+    const output = try std.fmt.allocPrint(alloc, "{f}", .{&query});
+    defer alloc.free(output);
 
-    for (tasks) |t| {
-        if (try query.matchTask(alloc, &t)) {
-            std.debug.print("{f}\n", .{t.dump(task_paths.relative_path)});
-        }
-    }
+    try std.testing.expectEqualStrings(
+        \\TOKENS:
+        \\    not
+        \\    [
+        \\    :bug
+        \\    and
+        \\    :test
+        \\    ]
+        \\    and
+        \\    :query
+        \\
+        \\OPS:
+        \\    OP_TAG bug
+        \\    OP_TAG test
+        \\    OP_AND
+        \\    OP_NOT
+        \\    OP_TAG query
+        \\    OP_AND
+        \\
+    , output);
+}
+
+test "ls_query_priority_above_20" {
+    const alloc = std.testing.allocator;
+    var query = Query.init(alloc, "priority gt 20");
+    defer query.deinit(alloc);
+    try query.parse();
+    const output = try std.fmt.allocPrint(alloc, "{f}", .{&query});
+    defer alloc.free(output);
+
+    try std.testing.expectEqualStrings(
+        \\TOKENS:
+        \\    priority
+        \\    gt
+        \\    20
+        \\
+        \\OPS:
+        \\    OP_PRIORITY
+        \\    OP_INTEGER 20
+        \\    OP_GT
+        \\
+    , output);
+}
+
+test "ls_query_report_error_utf8" {
+    const alloc = std.testing.allocator;
+    var query = Query.init(alloc, ":привет hello");
+    defer query.deinit(alloc);
+    const err = query.parse();
+    try std.testing.expectError(ParseError.UnexpectedInfix, err);
+    const output = try std.fmt.allocPrint(alloc, "{s}", .{query.err_msg.items});
+    defer alloc.free(output);
+
+    try std.testing.expectEqualStrings(
+        \\:привет hello
+        \\        ^
+        \\ERROR: Unexpected infix operator `hello`
+        \\
+    , output);
 }
