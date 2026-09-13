@@ -127,7 +127,7 @@ pub fn writeMd(self: *const Task, w: *std.Io.Writer) !void {
 
 pub fn tagsFromString(self: *Task, alloc: std.mem.Allocator, tags: []const u8) !void {
     if (tags.len <= 0) return;
-    var tag_it = std.mem.splitScalar(u8, tags, ',');
+    var tag_it = std.mem.splitAny(u8, tags, ", ");
     while (tag_it.next()) |tag| {
         const safe_tag = md.trimSpace(tag);
         if (safe_tag.len > 0) {
