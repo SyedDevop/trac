@@ -8,6 +8,8 @@ const Task = @import("Task.zig");
 const HUID = @import("huid.zig");
 const paths = @import("paths.zig");
 const md = @import("md.zig");
+const Tokenizer = @import("Tokenizer.zig");
+const Query = @import("Query.zig");
 
 pub fn main(init: std.process.Init) !void {
     var stdout_buffer: [1024]u8 = undefined;
@@ -80,12 +82,38 @@ pub fn main(init: std.process.Init) !void {
                 Task.sortEq(),
             );
 
+            var input = try cli.getAllPosArgAsStr() orelse "";
+            if (input.len == 0) {
+                input = try allocator.dupe(u8, "any");
+            }
+            defer allocator.free(input);
+
+            var query = Query.init(allocator, input);
+            defer query.deinit(allocator);
+            query.parse() catch {
+                std.debug.print("{s}", .{query.err_msg.items});
+                return;
+            };
+
+            const debug = try cli.getBoolArg("debug");
+            if (debug) {
+                try stdout.print("{f}", .{&query});
+                try stdout.flush();
+                return;
+            }
             const all = try cli.getBoolArg("A");
-            const input = try cli.getAllPosArgAsStr() orelse "";
-            _ = input;
             for (tasks) |ta| {
                 if (!all and ta.status != state) continue;
-                std.debug.print("{f}\n", .{ta.dump(tasks_db.relative_path)});
+                const matched = query.matchTask(allocator, &ta) catch |err| switch (err) {
+                    error.InvalidStack => {
+                        std.debug.print("{s}", .{query.err_msg.items});
+                        return;
+                    },
+                    else => return err,
+                };
+                if (matched) {
+                    std.debug.print("{f}\n", .{ta.dump(tasks_db.relative_path)});
+                }
             }
         },
         .new => {
@@ -105,7 +133,7 @@ pub fn main(init: std.process.Init) !void {
             defer allocator.free(huid);
 
             var task = Task.initEmpty(huid, safe_title, tags, priority);
-            defer task.deinit(allocator);
+            //defer task.deinit(allocator);
             const cwd = std.Io.Dir.cwd();
 
             if (!tasks_db.foundPath()) return;
@@ -328,4 +356,10 @@ fn absClampToUnsigned(T: type, value: anytype) T {
     }
 
     return @min(std.math.maxInt(T), @abs(value));
+}
+
+test {
+    _ = HUID;
+    _ = Tokenizer;
+    _ = Query;
 }

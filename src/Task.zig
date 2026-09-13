@@ -20,7 +20,7 @@ id: []const u8,
 title: []const u8,
 status: Status,
 tags: Tags,
-priority: u32,
+priority: u64,
 body: []const u8,
 md_content: []const u8,
 
@@ -29,7 +29,7 @@ pub fn init(
     title: []const u8,
     status: Status,
     tags: Tags,
-    priority: u32,
+    priority: u64,
     body: []const u8,
     md_content: []const u8,
 ) Task {
@@ -90,7 +90,7 @@ pub fn loadTasks(io: std.Io, alloc: std.mem.Allocator, tasks_re_path: []const u8
             content = token.rest();
         }
 
-        const priority_i = try std.fmt.parseInt(u32, stats.get("PRIORITY").?, 10);
+        const priority_i = try std.fmt.parseInt(u64, stats.get("PRIORITY").?, 10);
         var task = Task.init(
             try alloc.dupe(u8, it.name),
             title,
@@ -138,6 +138,11 @@ pub fn tagsFromString(self: *Task, alloc: std.mem.Allocator, tags: []const u8) !
 
 pub fn addTags(self: *Task, alloc: std.mem.Allocator, tag: []const u8) !void {
     try self.tags.append(alloc, tag);
+}
+
+pub fn hasTag(self: *const Task, tag: []const u8) bool {
+    for (self.tags.items) |t| if (std.mem.eql(u8, t, tag)) return true;
+    return false;
 }
 
 /// Frees a `Task` that was loaded from TASKS.md.
@@ -205,9 +210,4 @@ pub fn writeTags(prefix: []const u8, tags: []const []const u8, w: *std.Io.Writer
         if (i > 0) try w.writeAll(", ");
         try w.writeAll(tag);
     }
-}
-
-pub fn tagsHas(tags: Tags, tag: []const u8) bool {
-    for (tags) |t| if (std.mem.eql(u8, t, tag)) return true;
-    return false;
 }
