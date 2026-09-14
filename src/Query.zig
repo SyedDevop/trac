@@ -135,6 +135,15 @@ pub fn parse(self: *Query) ParseError!void {
     }
 }
 
+fn testParse(self: *Query) ParseError!void {
+    try self.parseExpr();
+    const end = self.tokenizer.next();
+    if (end.len != 0) {
+        try self.errorReport(.err, self.tokenizer.token_pos, "Unexpected infix operator `{s}`", .{end});
+        return ParseError.UnexpectedInfix;
+    }
+}
+
 pub fn matchTask(self: *Query, alloc: Allocator, task: *const Task) MatchError!bool {
     var stack: Stack = .empty;
     defer stack.deinit(alloc);
@@ -421,15 +430,25 @@ inline fn strEq(a: []const u8, b: []const u8) bool {
     return mem.eql(u8, a, b);
 }
 
-test "ls_query_negation_of_complex_expression_in_parens" {
+fn expectOps(source: []const u8, expected: []const u8) !void {
     const alloc = std.testing.allocator;
-    var query = Query.init(alloc, "not [tagged or :bug and :test and :foo and :bar]");
+    var query = Query.init(alloc, source);
     defer query.deinit(alloc);
-    try query.parse();
+    try query.testParse();
     const output = try std.fmt.allocPrint(alloc, "{f}", .{&query});
     defer alloc.free(output);
+    try std.testing.expectEqualStrings(expected, output);
+}
 
-    try std.testing.expectEqualStrings(
+fn expectParseError(source: []const u8, expected: ParseError) !void {
+    const alloc = std.testing.allocator;
+    var query = Query.init(alloc, source);
+    defer query.deinit(alloc);
+    try std.testing.expectError(expected, query.testParse());
+}
+
+test "ls_query_negation_of_complex_expression_in_parens" {
+    try expectOps("not [tagged or :bug and :test and :foo and :bar]",
         \\TOKENS:
         \\    not
         \\    [
@@ -456,18 +475,11 @@ test "ls_query_negation_of_complex_expression_in_parens" {
         \\    OP_OR
         \\    OP_NOT
         \\
-    , output);
+    );
 }
 
 test "ls_query_not_stuck_to_open_paren" {
-    const alloc = std.testing.allocator;
-    var query = Query.init(alloc, "not[:bug and :test] and :query");
-    defer query.deinit(alloc);
-    try query.parse();
-    const output = try std.fmt.allocPrint(alloc, "{f}", .{&query});
-    defer alloc.free(output);
-
-    try std.testing.expectEqualStrings(
+    try expectOps("not[:bug and :test] and :query",
         \\TOKENS:
         \\    not
         \\    [
@@ -486,29 +498,287 @@ test "ls_query_not_stuck_to_open_paren" {
         \\    OP_TAG query
         \\    OP_AND
         \\
-    , output);
+    );
+}
+test "ls_query_single_tag_wrapped_in_parens" {
+    try expectOps("[:bug]",
+        \\TOKENS:
+        \\    [
+        \\    :bug
+        \\    ]
+        \\
+        \\OPS:
+        \\    OP_TAG bug
+        \\
+    );
 }
 
-test "ls_query_priority_above_20" {
-    const alloc = std.testing.allocator;
-    var query = Query.init(alloc, "priority gt 20");
-    defer query.deinit(alloc);
-    try query.parse();
-    const output = try std.fmt.allocPrint(alloc, "{f}", .{&query});
-    defer alloc.free(output);
+test "ls_query_double_negation" {
+    try expectOps("not not :bug",
+        \\TOKENS:
+        \\    not
+        \\    not
+        \\    :bug
+        \\
+        \\OPS:
+        \\    OP_TAG bug
+        \\    OP_NOT
+        \\    OP_NOT
+        \\
+    );
+}
 
-    try std.testing.expectEqualStrings(
+test "ls_query_not_binds_to_primary_only" {
+    // `not` takes a primary, so this is (not :bug) and :test, not not(:bug and :test).
+    try expectOps("not :bug and :test",
+        \\TOKENS:
+        \\    not
+        \\    :bug
+        \\    and
+        \\    :test
+        \\
+        \\OPS:
+        \\    OP_TAG bug
+        \\    OP_NOT
+        \\    OP_TAG test
+        \\    OP_AND
+        \\
+    );
+}
+
+test "ls_query_and_binds_tighter_than_or" {
+    try expectOps(":a or :b and :c",
+        \\TOKENS:
+        \\    :a
+        \\    or
+        \\    :b
+        \\    and
+        \\    :c
+        \\
+        \\OPS:
+        \\    OP_TAG a
+        \\    OP_TAG b
+        \\    OP_TAG c
+        \\    OP_AND
+        \\    OP_OR
+        \\
+    );
+}
+
+test "ls_query_parens_override_precedence" {
+    try expectOps("[:a or :b] and :c",
+        \\TOKENS:
+        \\    [
+        \\    :a
+        \\    or
+        \\    :b
+        \\    ]
+        \\    and
+        \\    :c
+        \\
+        \\OPS:
+        \\    OP_TAG a
+        \\    OP_TAG b
+        \\    OP_OR
+        \\    OP_TAG c
+        \\    OP_AND
+        \\
+    );
+}
+
+test "ls_query_priority_lt" {
+    try expectOps("priority lt 5",
+        \\TOKENS:
+        \\    priority
+        \\    lt
+        \\    5
+        \\
+        \\OPS:
+        \\    OP_PRIORITY
+        \\    OP_INTEGER 5
+        \\    OP_LT
+        \\
+    );
+}
+
+test "ls_query_compare_combined_with_and" {
+    try expectOps("priority gt 10 and :bug",
+        \\TOKENS:
+        \\    priority
+        \\    gt
+        \\    10
+        \\    and
+        \\    :bug
+        \\
+        \\OPS:
+        \\    OP_PRIORITY
+        \\    OP_INTEGER 10
+        \\    OP_GT
+        \\    OP_TAG bug
+        \\    OP_AND
+        \\
+    );
+}
+
+test "ls_query_compare_inside_parens_with_or" {
+    try expectOps("[priority ge 5 or :urgent] and not :done",
+        \\TOKENS:
+        \\    [
+        \\    priority
+        \\    ge
+        \\    5
+        \\    or
+        \\    :urgent
+        \\    ]
+        \\    and
+        \\    not
+        \\    :done
+        \\
+        \\OPS:
+        \\    OP_PRIORITY
+        \\    OP_INTEGER 5
+        \\    OP_GTE
+        \\    OP_TAG urgent
+        \\    OP_OR
+        \\    OP_TAG done
+        \\    OP_NOT
+        \\    OP_AND
+        \\
+    );
+}
+
+test "ls_query_chained_comparison_is_accepted" {
+    try expectOps("priority gt 20 lt 30",
         \\TOKENS:
         \\    priority
         \\    gt
         \\    20
+        \\    lt
+        \\    30
         \\
         \\OPS:
         \\    OP_PRIORITY
         \\    OP_INTEGER 20
         \\    OP_GT
+        \\    OP_INTEGER 30
+        \\    OP_LT
         \\
-    , output);
+    );
+}
+
+test "ls_query_savepoint_rewind_leaves_and_for_parse_and" {
+    try expectOps("priority eq 1 or priority eq 2",
+        \\TOKENS:
+        \\    priority
+        \\    eq
+        \\    1
+        \\    or
+        \\    priority
+        \\    eq
+        \\    2
+        \\
+        \\OPS:
+        \\    OP_PRIORITY
+        \\    OP_INTEGER 1
+        \\    OP_EQ
+        \\    OP_PRIORITY
+        \\    OP_INTEGER 2
+        \\    OP_EQ
+        \\    OP_OR
+        \\
+    );
+}
+
+test "ls_query_err_empty_source" {
+    try expectParseError("", ParseError.UnexpectedPrimary);
+}
+
+test "ls_query_err_only_whitespace" {
+    try expectParseError("    ", ParseError.UnexpectedPrimary);
+}
+
+test "ls_query_err_empty_tag" {
+    try expectParseError(":", ParseError.EmptyTag);
+}
+
+test "ls_query_err_empty_tag_after_not" {
+    try expectParseError("not :", ParseError.EmptyTag);
+}
+
+test "ls_query_err_unclosed_paren" {
+    try expectParseError("[:bug and :test", ParseError.UnexpectedToken);
+}
+
+test "ls_query_err_wrong_closing_token" {
+    try expectParseError("[:bug)", ParseError.UnexpectedToken);
+}
+
+test "ls_query_err_empty_parens" {
+    try expectParseError("[]", ParseError.UnexpectedPrimary);
+}
+
+test "ls_query_err_trailing_close_paren" {
+    try expectParseError("[:bug] ]", ParseError.UnexpectedInfix);
+}
+
+test "ls_query_err_two_primaries_in_a_row" {
+    try expectParseError(":bug :test", ParseError.UnexpectedInfix);
+}
+
+test "ls_query_err_trailing_and" {
+    try expectParseError(":bug and", ParseError.UnexpectedPrimary);
+}
+
+test "ls_query_err_trailing_or" {
+    try expectParseError(":bug or", ParseError.UnexpectedPrimary);
+}
+
+test "ls_query_err_leading_and" {
+    try expectParseError("and :bug", ParseError.UnexpectedPrimary);
+}
+
+test "ls_query_err_dangling_not" {
+    try expectParseError("not", ParseError.UnexpectedPrimary);
+}
+
+test "ls_query_err_missing_right_operand_of_compare" {
+    try expectParseError("priority gt", ParseError.UnexpectedPrimary);
+}
+
+test "ls_query_err_unknown_word" {
+    try expectParseError("priorty gt 20", ParseError.UnexpectedPrimary);
+}
+
+test "ls_query_err_integer_overflow" {
+    try expectParseError("priority gt 99999999999999999999999", ParseError.IntegerOverflow);
+}
+
+test "ls_query_err_message_points_at_offending_token" {
+    const alloc = std.testing.allocator;
+    var query = Query.init(alloc, ":bug :test");
+    defer query.deinit(alloc);
+    try std.testing.expectError(ParseError.UnexpectedInfix, query.testParse());
+
+    try std.testing.expectEqualStrings(
+        \\:bug :test
+        \\     ^
+        \\ERROR: Unexpected infix operator `:test`
+        \\
+    , query.err_msg.items);
+}
+
+test "ls_query_err_message_caret_at_column_zero" {
+    const alloc = std.testing.allocator;
+    var query = Query.init(alloc, "and :bug");
+    defer query.deinit(alloc);
+    try std.testing.expectError(ParseError.UnexpectedPrimary, query.testParse());
+
+    try std.testing.expectEqualStrings(
+        \\and :bug
+        \\^
+        \\ERROR: Unexpected start of a primary expression `and`.
+        \\
+    , query.err_msg.items);
 }
 
 // test "ls_query_report_error_utf8" {
