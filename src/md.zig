@@ -1,7 +1,7 @@
 const std = @import("std");
 
-const Source = std.mem.TokenIterator(u8, .scalar);
-const Map = std.StringHashMap([]const u8);
+pub const Source = std.mem.TokenIterator(u8, .scalar);
+pub const Map = std.StringHashMap([]const u8);
 
 pub fn trimSpace(str: []const u8) []const u8 {
     return std.mem.trim(u8, str, " ");
@@ -57,7 +57,7 @@ pub fn parseTitle(str: *Source, title: *[]const u8) bool {
     return true;
 }
 
-pub fn parseBody(str: *Source, properties: *Map) !bool {
+pub fn parseBody(str: *Source, main_properties: *Map, extra_properties: *Map) !void {
     var cur_index = str.index;
     while (str.next()) |line| {
         defer cur_index = str.index;
@@ -67,13 +67,17 @@ pub fn parseBody(str: *Source, properties: *Map) !bool {
         const prop = parseProperties(safe_line) catch |err| switch (err) {
             error.NotPropertiesStr => {
                 str.index = cur_index;
-                return false;
+                //return false;
+                return;
             },
         };
         if (prop) |p| {
-            //std.debug.print("{f}\n", .{p});
-            try properties.put(p.K, p.V);
+            if (main_properties.contains(p.K)) {
+                try main_properties.put(p.K, p.V);
+            } else {
+                try extra_properties.put(p.K, p.V);
+            }
         } else continue;
     }
-    return true;
+    //return true;
 }

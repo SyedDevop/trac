@@ -83,10 +83,10 @@ pub fn main(init: std.process.Init) !void {
             );
 
             var input = try cli.getAllPosArgAsStr() orelse "";
+            defer allocator.free(input);
             if (input.len == 0) {
                 input = try allocator.dupe(u8, "any");
             }
-            defer allocator.free(input);
 
             var query = Query.init(allocator, input);
             defer query.deinit(allocator);
@@ -116,6 +116,84 @@ pub fn main(init: std.process.Init) !void {
                 }
             }
         },
+
+        .untag => {
+            if (!tasks_db.foundPath()) return;
+
+            const closed = try cli.getBoolArg("closed");
+            var tags = try findAllTags(cli.computed_args.data.items, allocator);
+            defer tags.deinit(allocator);
+
+            const state: Task.Status = if (closed) .CLOSED else .OPEN;
+
+            const tasks = try Task.loadTasks(init.io, allocator, tasks_db.relative_path);
+            defer {
+                for (tasks) |*ta| ta.deinit(allocator);
+                allocator.free(tasks);
+            }
+
+            if (tasks.len == 0) {
+                std.log.info("No tasks found.", .{});
+                return;
+            }
+
+            std.mem.sortUnstable(
+                Task,
+                tasks,
+                Task.SortCtx{ .by = .PRIORITY, .order = .ASC },
+                Task.sortEq(),
+            );
+            const input = try cli.getAllPosArgAsStr() orelse "";
+            defer allocator.free(input);
+            if (input.len == 0) {
+                std.log.err("No query is provided\n", .{});
+            }
+
+            var query = Query.init(allocator, input);
+            defer query.deinit(allocator);
+            query.parse() catch {
+                std.debug.print("{s}", .{query.err_msg.items});
+                return;
+            };
+
+            var writeBuf: [1024]u8 = undefined;
+            var needUpdate = false;
+            var updates: usize = 0;
+            for (tasks) |*ta| {
+                if (ta.status != state) continue;
+                const matched = query.matchTask(allocator, ta) catch |err| switch (err) {
+                    error.InvalidStack => {
+                        std.debug.print("{s}", .{query.err_msg.items});
+                        return;
+                    },
+                    else => return err,
+                };
+                if (!matched) continue;
+
+                needUpdate = false;
+                for (tags.items) |it| {
+                    if (ta.tagIndex(it)) |idx| {
+                        _ = try ta.removeTag(idx);
+                        needUpdate = true;
+                    }
+                }
+                if (needUpdate) {
+                    const path = try tasks_db.tasksMdPath(allocator, ta.id);
+                    defer allocator.free(path);
+
+                    const file = try std.Io.Dir.cwd().openFile(init.io, path, .{ .mode = .read_write });
+                    defer file.close(init.io);
+                    try file.setLength(init.io, 0);
+                    var file_w = file.writer(init.io, &writeBuf);
+                    try ta.writeMd(&file_w.interface);
+                    try file_w.flush();
+                    updates += 1;
+                }
+            }
+
+            std.log.info("{d} tasks updated\n", .{updates});
+        },
+
         .new => {
             var title = try cli.getAllPosArgAsStr();
             if (title == null or title.?.len <= 0) {
@@ -166,6 +244,7 @@ pub fn main(init: std.process.Init) !void {
             try stdout.print("{f}\n", .{task.dump(tasks_db.relative_path)});
             try stdout.flush();
         },
+
         .ref => {
             if (!tasks_db.foundPath()) return;
 
@@ -313,7 +392,6 @@ pub fn main(init: std.process.Init) !void {
                 std.log.err("No task with with HUID `{s}` was found", .{huid.?});
             }
         },
-
         .graph => std.log.info("TODO: {t} cmd is not implemented yet", .{cli.running_cmd.name}),
     }
 }

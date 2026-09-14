@@ -16,6 +16,7 @@ pub const Cmds = enum {
     find,
     ref,
     graph,
+    untag,
     // completion,
 };
 
@@ -143,5 +144,26 @@ pub const CMD_LIST = [_]CmdType{
         .usage = "",
         .min_pos_arg = 0,
         .min_arg = 0,
+    },
+    CmdType{
+        .name = .untag,
+        .info = "Untag all the tasks filtered by a query",
+        .usage = "untag [OPTIONS] [QUERY]",
+        .min_pos_arg = 1,
+        .min_arg = 0,
+        .options = &.{
+            Arg{
+                .long = "closed",
+                .short = 'c',
+                .info = "List closed tasks",
+                .value = .{ .bool = null },
+            },
+            Arg{
+                .long = "tags",
+                .short = 't',
+                .info = "tags to remove to the task",
+                .value = .{ .str = null },
+            },
+        },
     },
 };

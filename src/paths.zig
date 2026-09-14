@@ -28,6 +28,10 @@ pub const TasksDbPaths = struct {
         };
     }
 
+    pub fn tasksMdPath(self: TasksDbPaths, alloc: std.mem.Allocator, huid: []const u8) ![]u8 {
+        return std.fs.path.join(alloc, &.{ self.tasks_path, huid, "TASK.md" });
+    }
+
     /// Returns true if the tasks directory was found
     /// And logs the error message.
     pub fn foundPath(self: TasksDbPaths) bool {

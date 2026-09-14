@@ -21,6 +21,7 @@ title: []const u8,
 status: Status,
 tags: Tags,
 priority: u64,
+extra_properties: ?md.Map,
 body: []const u8,
 md_content: []const u8,
 
@@ -41,6 +42,7 @@ pub fn init(
         .priority = priority,
         .body = body,
         .md_content = md_content,
+        .extra_properties = null,
     };
 }
 
@@ -55,8 +57,11 @@ pub fn loadTasks(io: std.Io, alloc: std.mem.Allocator, tasks_re_path: []const u8
     defer tasks_dir.close(io);
     var tasks_it = tasks_dir.iterate();
 
-    var stats = std.StringHashMap([]const u8).init(alloc);
+    var stats: md.Map = .init(alloc);
     defer stats.deinit();
+
+    var extra_properties: md.Map = .init(alloc);
+    defer extra_properties.deinit();
 
     var tasks: std.ArrayList(Task) = .empty;
     while (try tasks_it.next(io)) |it| {
@@ -78,6 +83,8 @@ pub fn loadTasks(io: std.Io, alloc: std.mem.Allocator, tasks_re_path: []const u8
         var token = std.mem.tokenizeScalar(u8, tasks_md_file, '\n');
 
         stats.clearRetainingCapacity();
+        extra_properties.clearRetainingCapacity();
+
         try stats.put("STATUS", "OPEN");
         try stats.put("PRIORITY", "999999");
         try stats.put("TAGS", "");
@@ -86,7 +93,7 @@ pub fn loadTasks(io: std.Io, alloc: std.mem.Allocator, tasks_re_path: []const u8
         var content: []const u8 = "";
 
         if (md.parseTitle(&token, &title)) {
-            _ = try md.parseBody(&token, &stats);
+            try md.parseBody(&token, &stats, &extra_properties);
             content = token.rest();
         }
 
@@ -100,6 +107,10 @@ pub fn loadTasks(io: std.Io, alloc: std.mem.Allocator, tasks_re_path: []const u8
             content,
             tasks_md_file,
         );
+
+        if (extra_properties.count() > 0) {
+            task.extra_properties = try extra_properties.clone();
+        }
         try task.tagsFromString(alloc, stats.get("TAGS").?);
         try tasks.append(alloc, task);
     }
@@ -120,7 +131,12 @@ pub fn writeMd(self: *const Task, w: *std.Io.Writer) !void {
     try w.writeAll("- TAGS:");
     try writeTags(" ", self.tags.items, w);
     try w.writeByte('\n');
-
+    if (self.extra_properties) |ep| {
+        var it = ep.iterator();
+        while (it.next()) |kv| {
+            try w.print("- {s}: {s}\n", .{ kv.key_ptr.*, kv.value_ptr.* });
+        }
+    }
     try w.writeByte('\n');
     try w.writeAll(self.body);
 }
@@ -139,6 +155,14 @@ pub fn tagsFromString(self: *Task, alloc: std.mem.Allocator, tags: []const u8) !
 pub fn addTags(self: *Task, alloc: std.mem.Allocator, tag: []const u8) !void {
     try self.tags.append(alloc, tag);
 }
+pub fn removeTag(self: *Task, idx: usize) ![]const u8 {
+    return self.tags.orderedRemove(idx);
+}
+
+pub fn tagIndex(self: *const Task, tag: []const u8) ?usize {
+    for (self.tags.items, 0..) |t, i| if (std.mem.eql(u8, t, tag)) return i;
+    return null;
+}
 
 pub fn hasTag(self: *const Task, tag: []const u8) bool {
     for (self.tags.items) |t| if (std.mem.eql(u8, t, tag)) return true;
@@ -154,6 +178,7 @@ pub fn hasTag(self: *const Task, tag: []const u8) bool {
 pub fn deinit(self: *Task, alloc: std.mem.Allocator) void {
     alloc.free(self.id);
     self.tags.deinit(alloc);
+    if (self.extra_properties) |*props| props.deinit();
     alloc.free(self.md_content);
 }
 
