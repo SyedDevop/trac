@@ -98,6 +98,12 @@ pub const CMD_LIST = [_]CmdType{
                 .info = "Outputs opcodes of the query for debugging",
                 .value = .{ .bool = null },
             },
+            .{
+                .long = "json",
+                .short = 'j',
+                .info = "Output the results in JSON format",
+                .value = .{ .bool = null },
+            },
         },
     },
 

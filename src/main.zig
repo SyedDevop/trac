@@ -102,6 +102,9 @@ pub fn main(init: std.process.Init) !void {
                 return;
             }
             const all = try cli.getBoolArg("A");
+            const json = try cli.getBoolArg("json");
+            if (json) try stdout.writeAll("[");
+            var i: usize = 0;
             for (tasks) |ta| {
                 if (!all and ta.status != state) continue;
                 const matched = query.matchTask(allocator, &ta) catch |err| switch (err) {
@@ -112,9 +115,17 @@ pub fn main(init: std.process.Init) !void {
                     else => return err,
                 };
                 if (matched) {
-                    std.debug.print("{f}\n", .{ta.dump(tasks_db.relative_path)});
+                    if (json) {
+                        if (i > 0) try stdout.writeByte(',');
+                        try stdout.print("\n{f}", .{ta.dump(tasks_db.relative_path, .json)});
+                        i += 1;
+                    } else {
+                        try stdout.print("{f}\n", .{ta.dump(tasks_db.relative_path, .default)});
+                    }
                 }
             }
+            if (json) try stdout.writeAll("]\n");
+            try stdout.flush();
         },
 
         .untag => {
@@ -241,7 +252,7 @@ pub fn main(init: std.process.Init) !void {
             const sb_w = &file_w.interface;
             try task.newMdContent(sb_w);
 
-            try stdout.print("{f}\n", .{task.dump(tasks_db.relative_path)});
+            try stdout.print("{f}\n", .{task.dump(tasks_db.relative_path, .default)});
             try stdout.flush();
         },
 
@@ -383,7 +394,7 @@ pub fn main(init: std.process.Init) !void {
             var found = false;
             for (tasks) |ta| {
                 if (std.mem.eql(u8, ta.id, huid.?)) {
-                    std.debug.print("{f}\n", .{ta.dump(tasks_db.relative_path)});
+                    std.debug.print("{f}\n", .{ta.dump(tasks_db.relative_path, .default)});
                     found = true;
                     break;
                 }

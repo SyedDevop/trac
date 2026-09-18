@@ -207,22 +207,65 @@ pub fn sortEq() fn (SortCtx, Task, Task) bool {
     }.inner;
 }
 
+const DumpFormatFor = enum {
+    json,
+    default,
+};
 const Dump = struct {
     relative_path: []const u8,
     task: *const Task,
+    format_for: DumpFormatFor,
 
     pub fn format(self: Dump, writer: *std.Io.Writer) std.Io.Writer.Error!void {
+        switch (self.format_for) {
+            .json => try self.jsonFmt(writer),
+            .default => try self.defaultFmt(writer),
+        }
+    }
+
+    fn defaultFmt(self: Dump, writer: *std.Io.Writer) std.Io.Writer.Error!void {
         const task = self.task;
         try writer.print("{s}/{s}/TASK.md:1: ({t:>6}) [PRIORITY: {d: >3}", .{ self.relative_path, task.id, task.status, task.priority });
         try writeTags(", TAGS: ", task.tags.items, writer);
         try writer.print("] {s}", .{task.title});
     }
+
+    fn jsonFmt(self: Dump, writer: *std.Io.Writer) std.Io.Writer.Error!void {
+        const task = self.task;
+        const body = std.mem.trim(u8, task.body, "\r\t\n ");
+        try writer.writeByte('{');
+        try writer.writeByte('\n');
+        try writer.print("\"id\": \"{s}\",\n", .{task.id});
+        try writer.print("\"status\": \"{t}\",\n", .{task.status});
+        try writer.print("\"priority\": {d},\n", .{task.priority});
+        if (task.tags.items.len > 0) {
+            try writeTags("\"tags\": \"", task.tags.items, writer);
+            try writer.writeAll("\",");
+        }
+        try writer.writeAll("\"body\": \"");
+        for (body) |v| {
+            if (v == '\n') {
+                try writer.writeAll("\\n");
+                continue;
+            }
+            if (v == '"') {
+                try writer.writeAll("\\\"");
+                continue;
+            } else {
+                try writer.writeByte(v);
+            }
+        }
+        try writer.writeAll("\",\n");
+        try writer.print("\"relative_path\": \"{s}\"\n", .{self.relative_path});
+        try writer.writeByte('}');
+    }
 };
 
-pub fn dump(task: *const Task, relative_path: []const u8) Dump {
+pub fn dump(task: *const Task, relative_path: []const u8, format_for: DumpFormatFor) Dump {
     return .{
         .task = task,
         .relative_path = relative_path,
+        .format_for = format_for,
     };
 }
 
