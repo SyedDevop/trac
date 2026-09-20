@@ -11,7 +11,7 @@ const md = @import("md.zig");
 const Tokenizer = @import("Tokenizer.zig");
 const Query = @import("Query.zig");
 
-pub fn main(init: std.process.Init) !void {
+pub fn main(init: std.process.Init) !u8 {
     var stdout_buffer: [1024]u8 = undefined;
     var stdout_io = std.Io.File.stdout().writer(init.io, &stdout_buffer);
     var stdout = &stdout_io.interface;
@@ -33,7 +33,7 @@ pub fn main(init: std.process.Init) !void {
     cli.parse(args) catch |err| {
         try cli.printParseError(err, stdout);
         try stdout.flush();
-        return;
+        return 1;
     };
 
     const tasks_db = try paths.TasksDbPaths.init(init.io, allocator);
@@ -46,14 +46,14 @@ pub fn main(init: std.process.Init) !void {
             cwd.createDir(init.io, paths.TASKS_DIR, .default_dir) catch |err| {
                 if (err == error.PathAlreadyExists) {
                     std.log.info("Tasks '" ++ paths.TASKS_DIR ++ "' directory already exists.", .{});
-                    return;
+                    return 1;
                 }
                 return err;
             };
             std.log.info("Tasks '" ++ paths.TASKS_DIR ++ "' directory initialized.", .{});
         },
         .ls => {
-            if (!tasks_db.foundPath()) return;
+            if (!tasks_db.foundPath()) return 1;
 
             const closed = try cli.getBoolArg("closed");
             const state: Task.Status = if (closed) .CLOSED else .OPEN;
@@ -66,7 +66,7 @@ pub fn main(init: std.process.Init) !void {
 
             if (tasks.len == 0) {
                 std.log.info("No tasks found.", .{});
-                return;
+                return 0;
             }
 
             const order_asc = try cli.getBoolArg("ascending");
@@ -92,14 +92,14 @@ pub fn main(init: std.process.Init) !void {
             defer query.deinit(allocator);
             query.parse() catch {
                 std.debug.print("{s}", .{query.err_msg.items});
-                return;
+                return 1;
             };
 
             const debug = try cli.getBoolArg("debug");
             if (debug) {
                 try stdout.print("{f}", .{&query});
                 try stdout.flush();
-                return;
+                return 0;
             }
             const all = try cli.getBoolArg("A");
             const json = try cli.getBoolArg("json");
@@ -110,7 +110,7 @@ pub fn main(init: std.process.Init) !void {
                 const matched = query.matchTask(allocator, &ta) catch |err| switch (err) {
                     error.InvalidStack => {
                         std.debug.print("{s}", .{query.err_msg.items});
-                        return;
+                        return 1;
                     },
                     else => return err,
                 };
@@ -129,7 +129,7 @@ pub fn main(init: std.process.Init) !void {
         },
 
         .untag => {
-            if (!tasks_db.foundPath()) return;
+            if (!tasks_db.foundPath()) return 1;
 
             const closed = try cli.getBoolArg("closed");
             var tags = try findAllTags(cli.computed_args.data.items, allocator);
@@ -145,7 +145,7 @@ pub fn main(init: std.process.Init) !void {
 
             if (tasks.len == 0) {
                 std.log.info("No tasks found.", .{});
-                return;
+                return 0;
             }
 
             std.mem.sortUnstable(
@@ -164,7 +164,7 @@ pub fn main(init: std.process.Init) !void {
             defer query.deinit(allocator);
             query.parse() catch {
                 std.debug.print("{s}", .{query.err_msg.items});
-                return;
+                return 1;
             };
 
             var writeBuf: [1024]u8 = undefined;
@@ -175,7 +175,7 @@ pub fn main(init: std.process.Init) !void {
                 const matched = query.matchTask(allocator, ta) catch |err| switch (err) {
                     error.InvalidStack => {
                         std.debug.print("{s}", .{query.err_msg.items});
-                        return;
+                        return 1;
                     },
                     else => return err,
                 };
@@ -225,7 +225,7 @@ pub fn main(init: std.process.Init) !void {
             //defer task.deinit(allocator);
             const cwd = std.Io.Dir.cwd();
 
-            if (!tasks_db.foundPath()) return;
+            if (!tasks_db.foundPath()) return 1;
 
             const tasks_db_dir = try cwd.openDir(init.io, tasks_db.relative_path, .{});
             defer tasks_db_dir.close(init.io);
@@ -233,7 +233,7 @@ pub fn main(init: std.process.Init) !void {
             const new_task_dir = tasks_db_dir.createDirPathOpen(init.io, huid, .{}) catch |err| {
                 if (err == error.PathAlreadyExists) {
                     std.log.err("Task '{s}' already exists. This can happen if tasks are created to fast, or if system time is off — try again.", .{huid});
-                    return;
+                    return 1;
                 }
                 return err;
             };
@@ -242,7 +242,7 @@ pub fn main(init: std.process.Init) !void {
             const file = new_task_dir.createFile(init.io, "TASK.md", .{ .exclusive = true }) catch |err| {
                 if (err == error.PathAlreadyExists) {
                     std.log.err("Task '{s}' exists but its TASK.md is missing or was already created — refusing to overwrite.", .{huid});
-                    return;
+                    return 1;
                 }
                 return err;
             };
@@ -257,17 +257,17 @@ pub fn main(init: std.process.Init) !void {
         },
 
         .ref => {
-            if (!tasks_db.foundPath()) return;
+            if (!tasks_db.foundPath()) return 1;
 
             var huid: ?[]const u8 = null;
             if (cli.pos_args) |pos_args| for (pos_args) |pos_arg| {
                 if (huid != null) {
                     std.log.err("Several HUIDs is not supported", .{});
-                    return;
+                    return 1;
                 }
                 if (!HUID.isValid(pos_arg)) {
                     std.log.err("`{s}` is not a valid HUID. Valid HUID matches regexp `{s}`", .{ pos_arg, HUID.REGEX });
-                    return;
+                    return 1;
                 }
                 huid = pos_arg;
             };
@@ -278,7 +278,7 @@ pub fn main(init: std.process.Init) !void {
                 const cur_dir = std.fs.path.basename(tasks_db.cwd);
                 if (!HUID.isValid(cur_dir)) {
                     std.log.err("You are not inside any task folder. Pass the ID of a task as an argument to search for referers of that task.", .{});
-                    return;
+                    return 1;
                 }
                 huid = cur_dir;
                 path = std.fs.path.dirname(tasks_db.cwd) orelse tasks_db.cwd;
@@ -316,7 +316,7 @@ pub fn main(init: std.process.Init) !void {
         },
 
         .summary => {
-            if (!tasks_db.foundPath()) return;
+            if (!tasks_db.foundPath()) return 1;
 
             const closed = try cli.getBoolArg("closed");
             const state: Task.Status = if (closed) .CLOSED else .OPEN;
@@ -359,17 +359,17 @@ pub fn main(init: std.process.Init) !void {
         },
 
         .find => {
-            if (!tasks_db.foundPath()) return;
+            if (!tasks_db.foundPath()) return 1;
 
             var huid: ?[]const u8 = null;
             if (cli.pos_args) |pos_args| for (pos_args) |pos_arg| {
                 if (huid != null) {
                     std.log.err("Several HUIDs is not supported", .{});
-                    return;
+                    return 1;
                 }
                 if (!HUID.isValid(pos_arg)) {
                     std.log.err("`{s}` is not a valid HUID. Valid HUID matches regexp `{s}`", .{ pos_arg, HUID.REGEX });
-                    return;
+                    return 1;
                 }
                 huid = pos_arg;
             };
@@ -378,7 +378,7 @@ pub fn main(init: std.process.Init) !void {
                 std.log.err("No HUID was provided", .{});
                 try cli.help(stdout);
                 try stdout.flush();
-                return;
+                return 1;
             }
 
             const arena = init.arena.allocator();
@@ -389,7 +389,7 @@ pub fn main(init: std.process.Init) !void {
             const tasks = try Task.loadTasks(init.io, arena, tasks_db.relative_path);
             if (tasks.len == 0) {
                 std.log.info("No tasks found.", .{});
-                return;
+                return 0;
             }
             var found = false;
             for (tasks) |ta| {
@@ -405,6 +405,7 @@ pub fn main(init: std.process.Init) !void {
         },
         .graph => std.log.info("TODO: {t} cmd is not implemented yet", .{cli.running_cmd.name}),
     }
+    return 0;
 }
 
 fn findAllTags(args: []Arg, alloc: std.mem.Allocator) !Task.Tags {
