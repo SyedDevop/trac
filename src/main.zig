@@ -280,13 +280,18 @@ pub fn main(init: std.process.Init) !u8 {
             var path: []const u8 = tasks_db.cwd;
 
             if (huid == null) {
-                const cur_dir = std.fs.path.basename(tasks_db.cwd);
-                if (!HUID.isValid(cur_dir)) {
+                var comp = std.fs.path.componentIterator(tasks_db.cwd);
+                comp.start_index = comp.path.len;
+                comp.end_index = 0;
+                huid = while (comp.previous()) |c| {
+                    if (HUID.isValid(c.name)) {
+                        path = c.path;
+                        break c.name;
+                    }
+                } else {
                     std.log.err("You are not inside any task folder. Pass the ID of a task as an argument to search for referers of that task.", .{});
                     return 1;
-                }
-                huid = cur_dir;
-                path = std.fs.path.dirname(tasks_db.cwd) orelse tasks_db.cwd;
+                };
             }
 
             const grep_path = try std.fs.path.join(
