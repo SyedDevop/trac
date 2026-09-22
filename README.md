@@ -1,14 +1,13 @@
 # Trac (Task Tracker)
 
 <!--toc:start-->
-- [Trac (Task Tracker)](#trac-task-tracker)
-  - [Editor integration](#editor-integration)
-  - [Requirements](#requirements)
-  - [Build](#build)
-  - [Quick start](#quick-start)
-  - [The spec](#the-spec)
-  - [Commands](#commands)
-  - [Credits](#credits)
+- [Editor integration](#editor-integration)
+- [Requirements](#requirements)
+- [Build](#build)
+- [Quick start](#quick-start)
+- [The spec](#the-spec)
+- [Commands](#commands)
+- [Credits](#credits)
 <!--toc:end-->
 
 A plain-text, file-based task tracker CLI written in Zig.
