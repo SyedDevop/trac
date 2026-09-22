@@ -49,6 +49,12 @@ pub const CMD_LIST = [_]CmdType{
                 .value = .{ .str = null },
             },
             Arg{
+                .long = "body",
+                .short = 'b',
+                .info = "Body of the new task",
+                .value = .{ .str = null },
+            },
+            Arg{
                 .long = "priority",
                 .short = 'p',
                 .info = "Priority of the new task Default: 100",

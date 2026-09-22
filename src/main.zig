@@ -210,12 +210,14 @@ pub fn main(init: std.process.Init) !u8 {
             if (title == null or title.?.len <= 0) {
                 title = try allocator.dupe(u8, "New task");
             }
+
             defer allocator.free(title.?);
             const safe_title = std.mem.trim(u8, title.?, " \t\n\r");
             const priority_i = try cli.getNumArg("priority") orelse 100;
             const priority = absClampToUnsigned(u8, priority_i);
 
-            const tags = try findAllTags(cli.computed_args.data.items, allocator);
+            var tags = try findAllTags(cli.computed_args.data.items, allocator);
+            defer tags.deinit(allocator);
 
             const suffix = try cli.getStrArg("suffix");
             const huid = try HUID.new(init.io, allocator, suffix);
@@ -223,6 +225,9 @@ pub fn main(init: std.process.Init) !u8 {
 
             var task = Task.initEmpty(huid, safe_title, tags, priority);
             //defer task.deinit(allocator);
+            const body = try cli.getStrArg("body") orelse "";
+            if (body.len > 0) task.body = body;
+
             const cwd = std.Io.Dir.cwd();
 
             if (!tasks_db.foundPath()) return 1;
@@ -388,13 +393,14 @@ pub fn main(init: std.process.Init) !u8 {
             }
             const tasks = try Task.loadTasks(init.io, arena, tasks_db.relative_path);
             if (tasks.len == 0) {
-                std.log.info("No tasks found.", .{});
+                std.log.err("No tasks found.", .{});
                 return 0;
             }
             var found = false;
             for (tasks) |ta| {
                 if (std.mem.eql(u8, ta.id, huid.?)) {
-                    std.debug.print("{f}\n", .{ta.dump(tasks_db.relative_path, .default)});
+                    try stdout.print("{f}\n", .{ta.dump(tasks_db.relative_path, .default)});
+                    try stdout.flush();
                     found = true;
                     break;
                 }
