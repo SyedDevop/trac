@@ -81,7 +81,7 @@ project/
 
 ### HUID
 
-Each task sub-folder is named with a Task ID of the form `[0-9]{8}-[0-9]{6}` — an 8-digit date (`YYYYMMDD`) and a 6-digit time (`HHMMSS`), e.g. `20260918-170610`. The full format also allows an optional suffix: `[0-9]{8}-[0-9]{6}(-[a-zA-Z0-9\-]*)?`, e.g. `20260918-170610-login` — handy for slapping on a per-person or per-branch suffix (`trac new ... -s rexim`) to avoid collisions when working in parallel/across branches.
+Each task sub-folder is named with a Task ID of the form `[0-9]{8}-[0-9]{6}` — an 8-digit date (`YYYYMMDD`) and a 6-digit time (`HHMMSS`), e.g. `20260918-789889`. The full format also allows an optional suffix: `[0-9]{8}-[0-9]{6}(-[a-zA-Z0-9\-]*)?`, e.g. `20260918-789889-login` — handy for slapping on a per-person or per-branch suffix (`trac new ... -s rexim`) to avoid collisions when working in parallel/across branches.
 
 This is called an HUID (Human-Unique IDentifier): unique as long as you're not generating two at faster-than-one-per-second, "human speed". Because IDs are unique and timestamp-derived, tasks created in parallel branches merge cleanly under git.
 
