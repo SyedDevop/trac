@@ -261,6 +261,22 @@ pub fn main(init: std.process.Init) !u8 {
             try stdout.flush();
         },
 
+        .id => {
+            if (!tasks_db.foundPath()) return 1;
+            var comp = std.fs.path.componentIterator(tasks_db.cwd);
+            comp.start_index = comp.path.len;
+            comp.end_index = 0;
+            while (comp.previous()) |c| {
+                if (HUID.isValid(c.name)) {
+                    try stdout.print("{s}\n", .{c.name});
+                    try stdout.flush();
+                    return 0;
+                }
+            }
+            std.log.err("You are not inside any task folder", .{});
+            return 1;
+        },
+
         .ref => {
             if (!tasks_db.foundPath()) return 1;
 

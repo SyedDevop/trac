@@ -12,6 +12,7 @@ pub const Cmds = enum {
     init,
     ls,
     new,
+    id,
     summary,
     find,
     ref,
@@ -114,6 +115,14 @@ pub const CMD_LIST = [_]CmdType{
     },
 
     CmdType{
+        .name = .id,
+        .info = "Print the HUID of the task if your in side a task directory",
+        .usage = "",
+        .min_pos_arg = 0,
+        .min_arg = 0,
+    },
+
+    CmdType{
         .name = .summary,
         .info = "Print the summary of the tasks",
         .usage = "[OPTIONS]",
@@ -128,6 +137,7 @@ pub const CMD_LIST = [_]CmdType{
             },
         },
     },
+
     CmdType{
         .name = .find,
         .info = "Find the task with a given HUID",
